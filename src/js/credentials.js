@@ -9,8 +9,8 @@
 //    OR Legacy anon public key (starts with: eyJ...)
 // ============================================
 
-export const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-export const SUPABASE_PUBLISHABLE_KEY = 'YOUR_SUPABASE_PUBLISHABLE_KEY';
+export const SUPABASE_URL = 'https://itjroumrrzgvxhitklvs.supabase.co';
+export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_JcoAKxbwy7nSWz1FtREEVQ_HDnmDzVr';
 
 // ============================================
 // DO NOT EDIT BELOW THIS LINE
