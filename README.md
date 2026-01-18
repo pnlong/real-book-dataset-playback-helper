@@ -258,12 +258,16 @@ When you create your deployment repo from this template:
    - Click **Settings** → **Pages** (left sidebar)
    - Under **"Build and deployment"** → **"Source"**:
      - Select **"GitHub Actions"** (not "Deploy from a branch")
+   - That's it for the Pages settings - you don't need to configure anything else there
    - The workflow file (`.github/workflows/deploy.yml`) is already included in the template
-   - After you push, GitHub Actions will automatically deploy from the `/src` folder
-   - Wait ~1 minute for the first deployment to complete
-   - Access your site at: `https://YOUR_USERNAME.github.io/REPO_NAME/`
 
-**Note:** The GitHub Actions workflow deploys the `/src` folder to GitHub Pages. Every time you push to `main`, it will automatically redeploy.
+3. **Trigger the deployment:**
+   - Go to the **Actions** tab in your repository
+   - If a workflow hasn't run yet, click on "Deploy to GitHub Pages" in the left sidebar
+   - Click **"Run workflow"** → **"Run workflow"** to manually trigger it
+   - Wait ~1 minute for the deployment to complete
+   - Future pushes to `main` will automatically trigger deployments
+   - Access your site at: `https://YOUR_USERNAME.github.io/REPO_NAME/`
 
 ⚠️ **Important Notes:**
 - Your credentials are committed to the repo and visible in the deployed site
