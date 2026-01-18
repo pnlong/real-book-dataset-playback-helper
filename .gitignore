@@ -1,0 +1,15 @@
+# Environment variables (never commit!)
+.env
+
+# Mac OS
+.DS_Store
+
+# Editor directories
+.vscode/
+.idea/
+
+# Node modules (if using npm for dependencies)
+node_modules/
+
+# Logs
+*.log
