@@ -382,3 +382,66 @@ export async function resumeAudioContext() {
     await audioContext.resume();
   }
 }
+
+/**
+ * Encode an AudioBuffer to a WAV file blob
+ * @param {AudioBuffer} buffer - Audio buffer to encode
+ * @returns {Blob} - WAV file as a Blob
+ */
+export function encodeWavFile(buffer) {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataLength = buffer.length * blockAlign;
+  const headerLength = 44;
+  const totalLength = headerLength + dataLength;
+
+  const arrayBuffer = new ArrayBuffer(totalLength);
+  const view = new DataView(arrayBuffer);
+
+  // Helper to write string to DataView
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+
+  // WAV header
+  writeString(0, 'RIFF');                          // ChunkID
+  view.setUint32(4, totalLength - 8, true);        // ChunkSize
+  writeString(8, 'WAVE');                          // Format
+  writeString(12, 'fmt ');                         // Subchunk1ID
+  view.setUint32(16, 16, true);                    // Subchunk1Size (PCM)
+  view.setUint16(20, 1, true);                     // AudioFormat (1 = PCM)
+  view.setUint16(22, numChannels, true);           // NumChannels
+  view.setUint32(24, sampleRate, true);            // SampleRate
+  view.setUint32(28, byteRate, true);              // ByteRate
+  view.setUint16(32, blockAlign, true);            // BlockAlign
+  view.setUint16(34, bitsPerSample, true);         // BitsPerSample
+  writeString(36, 'data');                         // Subchunk2ID
+  view.setUint32(40, dataLength, true);            // Subchunk2Size
+
+  // Write interleaved audio data
+  const channels = [];
+  for (let i = 0; i < numChannels; i++) {
+    channels.push(buffer.getChannelData(i));
+  }
+
+  let offset = headerLength;
+  for (let i = 0; i < buffer.length; i++) {
+    for (let channel = 0; channel < numChannels; channel++) {
+      // Convert float32 (-1 to 1) to int16 (-32768 to 32767)
+      let sample = channels[channel][i];
+      // Clamp to prevent overflow
+      sample = Math.max(-1, Math.min(1, sample));
+      const int16Sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(offset, int16Sample, true);
+      offset += bytesPerSample;
+    }
+  }
+
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+}

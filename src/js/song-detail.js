@@ -21,7 +21,8 @@ import {
   mixBuffers,
   drawWaveformToCanvas,
   drawWaveformWithGridlines,
-  resumeAudioContext
+  resumeAudioContext,
+  encodeWavFile
 } from './audio.js';
 
 // State
@@ -103,6 +104,7 @@ const waveformCanvas = document.getElementById('waveform');
 const playbackIndicator = document.getElementById('playbackIndicator');
 const playbackStatus = document.getElementById('playbackStatus');
 const editStemsBtn = document.getElementById('editStemsBtn');
+const downloadMixBtn = document.getElementById('downloadMixBtn');
 const deleteSongBtn = document.getElementById('deleteSongBtn');
 
 // Edit Stems Modal elements
@@ -245,6 +247,7 @@ mainGridlinesToggle.addEventListener('change', async () => {
 playPauseBtn.addEventListener('click', handlePlayPause);
 resetBtn.addEventListener('click', handleReset);
 editStemsBtn.addEventListener('click', openModal);
+downloadMixBtn.addEventListener('click', handleDownloadMix);
 deleteSongBtn.addEventListener('click', handleDeleteSong);
 closeModalBtn.addEventListener('click', closeModal);
 backToInstrumentListBtn.addEventListener('click', showInstrumentList);
@@ -351,6 +354,7 @@ async function init() {
     timeSignatureDenominator.value = denominator;
 
     renderStemMixer();
+    updateDownloadButtonVisibility();
     await updateClickTrackDuration();
 
     // Build initial mix and draw waveform
@@ -2219,6 +2223,7 @@ async function handleSaveStem() {
     }
 
     renderStemMixer();
+    updateDownloadButtonVisibility();
     await updateClickTrackDuration();
 
     // Rebuild mix and waveform with new stem
@@ -2273,6 +2278,7 @@ async function confirmDeleteStem() {
     }
 
     renderStemMixer();
+    updateDownloadButtonVisibility();
     await updateClickTrackDuration();
 
     // Rebuild mix and waveform without the deleted stem
@@ -2414,5 +2420,108 @@ async function resetModalState() {
   if (previewClickTrackGainNode) {
     previewClickTrackGainNode.disconnect();
     previewClickTrackGainNode = null;
+  }
+}
+
+/**
+ * Update download button visibility based on whether there are stems
+ */
+function updateDownloadButtonVisibility() {
+  // Check if there are any stems with selected takes that have non-zero volume
+  const hasPlayableStems = currentStems.length > 0;
+
+  if (hasPlayableStems) {
+    downloadMixBtn.style.display = 'block';
+  } else {
+    downloadMixBtn.style.display = 'none';
+  }
+}
+
+/**
+ * Handle download mix button click
+ */
+async function handleDownloadMix() {
+  if (currentStems.length === 0) {
+    showNotification('No stems available to download', 'warning');
+    return;
+  }
+
+  try {
+    downloadMixBtn.disabled = true;
+    downloadMixBtn.textContent = 'Preparing...';
+
+    // Build stems-only mix (respecting current volume/mute settings)
+    const stemBuffers = [];
+    const stemVolumes = [];
+    let maxDuration = 0;
+
+    // Load all stem audio buffers using selected takes
+    for (let i = 0; i < allInstruments.length; i++) {
+      const instrument = allInstruments[i];
+      const selectedTakeName = selectedTakes[instrument.instrument_id];
+
+      if (!selectedTakeName) continue; // No take selected for this instrument
+
+      // Find the selected take
+      const stem = currentStems.find(s => s.instrument_id === instrument.instrument_id && s.take === selectedTakeName);
+      if (!stem) continue; // Selected take not found
+
+      const slider = document.getElementById(`slider-${i}`);
+      const volume = slider ? parseInt(slider.value) / 100 : 1;
+
+      if (volume === 0) continue; // Skip muted stems
+
+      try {
+        const buffer = await loadAudioBuffer(stem.wav_url);
+        const offsetBuffer = applyOffsetToBuffer(buffer, stem.offset_seconds);
+
+        stemBuffers.push(offsetBuffer);
+        stemVolumes.push(volume);
+
+        maxDuration = Math.max(maxDuration, offsetBuffer.duration);
+      } catch (error) {
+        console.error(`Error loading stem ${instrument.instrument_name}:`, error);
+      }
+    }
+
+    if (stemBuffers.length === 0) {
+      showNotification('No audible stems to download (all muted or failed to load)', 'warning');
+      downloadMixBtn.disabled = false;
+      downloadMixBtn.textContent = 'Download Mix';
+      return;
+    }
+
+    // Mix the buffers (duration = longest stem, no padding)
+    const mixedBuffer = mixBuffers(stemBuffers, stemVolumes, maxDuration);
+
+    // Encode to WAV
+    const wavBlob = encodeWavFile(mixedBuffer);
+
+    // Generate filename: {song_id}_{sanitized_title}_{timestamp}.wav
+    const sanitizedTitle = currentSong.title
+      ? currentSong.title.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').substring(0, 50)
+      : 'untitled';
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const filename = `${currentSong.song_id}_${sanitizedTitle}_${timestamp}.wav`;
+
+    // Trigger download
+    const url = URL.createObjectURL(wavBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showNotification(`<strong>Success!</strong> Mix downloaded as ${filename}`, 'success');
+
+  } catch (error) {
+    console.error('Error downloading mix:', error);
+    showNotification(`<strong>Error:</strong> ${error.message}`, 'error');
+  } finally {
+    downloadMixBtn.disabled = false;
+    downloadMixBtn.textContent = 'Download Mix';
   }
 }
